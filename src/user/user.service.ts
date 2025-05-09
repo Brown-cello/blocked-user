@@ -1,0 +1,205 @@
+import { HttpException, Injectable, NotFoundException, Req, Res, UnauthorizedException } from '@nestjs/common';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { User } from './entities/user.entity';
+import { Repository } from 'typeorm';
+import { JwtService } from '@nestjs/jwt';
+import * as argon2 from 'argon2';
+import { Roles } from '../auth/guard/role';
+import { userRole } from './enum/user.role.enum';
+import { LoginDto } from './dto/login.dto';
+import { Request,Response } from 'express';
+import { CreateUserDto } from './dto/create-user.dto';
+
+@Injectable()
+// user.service file
+
+export class UserService {
+  constructor(@InjectRepository(User) private userRepo: Repository<User>, 
+  private jwtService: JwtService) { }
+   async create(payload: CreateUserDto) {
+   payload.email = payload.email.toLowerCase()
+   const { email, password, firstName,lastName,...rest } = payload;
+   const user = await this.userRepo.findOne({ where: { email: email } });
+   if (user) {
+    throw new HttpException('sorry user with this email already exist', 400)
+   }
+   const hashPassword = await argon2.hash(password);
+  
+   const userDetails = await this.userRepo.save({
+    email,
+    password: hashPassword,firstName,lastName,
+    ...rest
+   })
+   
+   const Userpayload = { id: userDetails.id, email: userDetails.email };
+   return {
+    access_token: await this.jwtService.signAsync(Userpayload),
+   };
+  
+   }
+  
+  
+   async signIn(payload: LoginDto,  @Res() res: Response) {
+   const { email, password } = payload;
+   // const user = await this.userRepo.findOne({where:{email:email}  })
+   const user = await this.userRepo.createQueryBuilder("user").addSelect("user.password").where("user.email = :email", {email:payload.email}).getOne()
+   if (!user) {
+  throw new HttpException('No email found', 400)
+  }
+  const checkedPassword = await this.verifyPassword(user.password, password);
+  if (!checkedPassword) {
+   throw new HttpException('sorry password not exist', 400)
+  }
+  const token = await this.jwtService.signAsync({
+  email: user.email,
+   id: user.id
+   });
+  
+   res.cookie('isAuthenticated', token, {
+    httpOnly: true,
+    maxAge: 1 * 60 * 60 * 1000
+   });
+   // delete user.password
+   return res.send({
+    success: true,
+ userToken: token
+  
+   })
+  }
+  
+  async logout(@Req() req: Request, @Res() res: Response) {
+  const clearCookie = res.clearCookie('isAuthenticated');
+  
+  const response = res.send(` user successfully logout`)
+  
+  return {
+   clearCookie,
+   response
+   }
+   }
+  
+  
+  async findEmail(email: string) {
+   const mail = await this.userRepo.findOneByOrFail({ email })
+   if (!mail) {
+    throw new UnauthorizedException()
+   }
+   return mail;
+  }
+  
+  async findAll() {
+   return await this.userRepo.find()
+  }
+  async findOneById(id: string, ): Promise<User> {
+    const user = await this.userRepo.findOne({ where: { id } });
+    if (!user) {
+      throw new NotFoundException(`data record with ID ${id} not found`);
+    }
+    return user;
+  }
+
+  async update(id:string, updatedata: Partial<User>) {
+    const updateuser = await this.userRepo.findOne({ where: { id } });
+
+    if (!updateuser) {
+      throw new NotFoundException(`Library record with ID ${id} not found`);
+    }
+
+    const newupdateuser= await this.userRepo.update(id,updateuser);
+    const updated = await this.userRepo.findOne({ where: { id } })
+    
+
+    return{
+      statuscode:200,
+      message:'link succesfully updated',
+      data:updated
+    }
+}
+
+  
+async remove(id: string): Promise<{ message: string }> {
+  const result = await this.userRepo.delete(id);
+
+  if (result.affected === 0) {
+    throw new NotFoundException(`Library record with ID ${id} not found`);
+  
+  }
+
+  const newresult= await this.userRepo.delete(id)
+  
+
+  return { message: `USER with ID ${id} deleted successfully`,
+
+
+};
+} 
+   async verifyPassword(hashedPassword: string, plainPassword: string,): Promise<boolean> {
+   try {
+   return await argon2.verify(hashedPassword, plainPassword);
+   } catch (err) {
+    console.log(err.message)
+    return false;
+   }
+   }
+  
+   async user(headers: any): Promise<any> {
+    const authorizationHeader = headers.authorization; //It tries to extract the authorization header from the incoming request headers. This header typically contains the token used for authentication.
+    if (authorizationHeader) {
+    const token = authorizationHeader.replace('Bearer ', '');
+    const secret = process.env.JWTSECRET;
+    //checks if the authorization header exists. If not, it will skip to the else block and throw an error.
+    try {
+  const decoded = this.jwtService.verify(token);
+  let id = decoded["id"]; // After verifying the token, the function extracts the user's id from the decoded token payload.
+  let user = await this.userRepo.findOneBy({ id });
+  return { id: id,  email: user?.email, role: user?.role };
+   } catch (error) {
+    throw new UnauthorizedException('Invalid token');
+   
+   }} else 
+    throw new UnauthorizedException('Invalid or missing Bearer token');
+   
+   }
+ 
+   async promoteToAdmin(userId: string): Promise<User> {
+    const user = await this.userRepo.findOneBy({ id: userId });
+
+    if (!user) {
+      throw new HttpException('User not found', 404);
+    }
+
+    user.role = userRole.ADMIN; // Assuming you have a userRole enum defined somewhere
+    return this.userRepo.save(user);
+  }
+
+  async DemoteAdmin(id: string) {
+
+    const user = await this.userRepo.findOneBy({ id });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    // Set the role to USER
+    user.role = userRole.USER;
+    // Save the updated user
+    const updatedUser = await this.userRepo.save(user);
+    // Return only specific fields as Partial<User>
+    return { id: updatedUser.id, email: updatedUser.email, role: updatedUser.role };
+  }
+
+  async blockUser(id: string): Promise<{ message: string }> {
+    const user = await this.userRepo.findOne({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Set the user's isBlocked status to true
+    user.IsBlocked = true;
+    await this.userRepo.save(user);
+
+    return { message: `User with ID ${id} has been blocked.` };
+  }
+}
+
+
