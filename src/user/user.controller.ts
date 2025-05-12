@@ -68,4 +68,11 @@ export class UserController {
   async blockUser(@Param('id') id: string) {
     return this.userService.blockUser(id);
   }
+
+  @Patch('unblock/:id')
+  @UseGuards(AuthGuard(), RolesGuard) // Ensure that JWT auth and roles guard are applied
+  @Roles('admin','superadmin') // Only admin users can access this endpoint
+  async unblockUser(@Param('id') id: string) {
+    return this.userService.unblockUser(id);
+  }
 }

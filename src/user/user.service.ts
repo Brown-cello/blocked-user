@@ -200,6 +200,22 @@ async remove(id: string): Promise<{ message: string }> {
 
     return { message: `User with ID ${id} has been blocked.` };
   }
+
+
+
+  async unblockUser(id: string): Promise<{ message: string }> {
+    const user = await this.userRepo.findOne({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Set the user's isBlocked status to true
+    user.IsBlocked = false;
+    await this.userRepo.save(user);
+
+    return { message: `User with ID ${id} has been unblocked.` };
+  }
 }
 
 
