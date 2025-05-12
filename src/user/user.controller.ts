@@ -42,6 +42,8 @@ export class UserController {
 
    
    @Delete(':id')
+   @UseGuards(AuthGuard())
+   @Roles(userRole.SUPERADMIN) // Only allow superadmin to delete others
    async delete(@Param('id') id:string) {
      return this.userService.remove(id);
    }
