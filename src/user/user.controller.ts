@@ -27,8 +27,7 @@ export class UserController {
   }
   @Get()
   @UseGuards(AuthGuard())
-  //  @Roles('admin', 'superadmin') // Only allow admin and superadmin to access this route
-   findAll() {
+findAll() {
    return this.userService.findAll();
    }
    @Get(':id')
