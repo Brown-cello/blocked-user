@@ -26,8 +26,7 @@ export class UserController {
     return this.userService.signIn(LoginDto,res);
   }
   @Get()
-  // @UseGuards(AuthGuard(),RolesGuard)
-  //  @Roles('admin', 'superadmin') // Only allow admin and superadmin to access this route
+  @UseGuards(AuthGuard())
    findAll() {
    return this.userService.findAll();
    }
