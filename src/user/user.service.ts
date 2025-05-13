@@ -100,7 +100,12 @@ export class UserService {
   }
 
   async findAll() {
-    return await this.userRepo.find();
+    const users =await this.userRepo.find();
+    if(!users) {
+      throw new NotFoundException('No users found');
+      
+    }
+    return users;
   }
   async findOneById(id: string): Promise<User> {
     const user = await this.userRepo.findOne({ where: { id } });
@@ -216,7 +221,8 @@ export class UserService {
       throw new NotFoundException('User not found');
     }
 
-    // Set the user's isBlocked status to true
+    // Set the user's isBlocked status to false
+    // This will allow the user to log in again
     user.IsBlocked = false;
     await this.userRepo.save(user);
 
