@@ -9,7 +9,7 @@ import { LoginDto } from './dto/login.dto';
 import {  Response } from 'express';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
-import { BlockGuard } from 'src/auth/guard/block.guard';
+import { BlockGuard } from '../auth/guard/block.guard';
 
 @Controller('user')
 export class UserController {

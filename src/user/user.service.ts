@@ -100,12 +100,7 @@ export class UserService {
   }
 
   async findAll() {
-    const users =await this.userRepo.find();
-    if(!users) {
-      throw new NotFoundException('No users found');
-      
-    }
-    return users;
+    return await this.userRepo.find();
   }
   async findOneById(id: string): Promise<User> {
     const user = await this.userRepo.findOne({ where: { id } });
